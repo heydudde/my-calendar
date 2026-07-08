@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { gcalCheckFreebusy, gcalCreateEvent } from "@/lib/google/calendar";
+import { gcalCheckFreebusy, gcalCreateEvent, gcalSuggestNextSlots } from "@/lib/google/calendar";
 import { validateBookingInput } from "@/lib/bookings/validate";
 import { resendSendBookingConfirmation } from "@/lib/email/resend";
+import { getBuilderSettings } from "@/lib/settings";
 
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -31,10 +32,59 @@ export async function POST(req: NextRequest) {
     const isFree = await gcalCheckFreebusy(start.toISOString(), end.toISOString());
 
     if (!isFree) {
+      const supabase = createAdminClient();
+      const { data: declinedBooking } = await supabase
+        .from("bookings")
+        .insert({
+          client_name,
+          client_email,
+          topic,
+          requested_at: start.toISOString(),
+          duration_minutes,
+          status: "declined",
+          decline_reason: "slot unavailable",
+        })
+        .select()
+        .single();
+
+      let suggestions: { suggested_at: string; suggestion_confidence: number }[] = [];
+      try {
+        const settings = await getBuilderSettings();
+        const slots = await gcalSuggestNextSlots({
+          durationMinutes: duration_minutes,
+          workingHours: settings.working_hours,
+          bufferMinutes: settings.buffer_minutes,
+          from: new Date(),
+          daysToScan: 7,
+          limit: 3,
+        });
+        const now = Date.now();
+        suggestions = slots.map((iso) => {
+          const hoursFromNow = Math.max((new Date(iso).getTime() - now) / 3_600_000, 0.01);
+          return { suggested_at: iso, suggestion_confidence: Math.min(1 / hoursFromNow, 1) };
+        });
+
+        if (declinedBooking && suggestions.length > 0) {
+          await supabase.from("slot_suggestions").insert(
+            suggestions.map((s) => ({
+              booking_id: declinedBooking.id,
+              suggested_at: s.suggested_at,
+              suggestion_source: "google_freebusy_scan",
+              suggestion_confidence: s.suggestion_confidence,
+              suggestion_review_status: "unreviewed",
+            })),
+          );
+        }
+      } catch (suggestErr) {
+        // Suggestions are a nice-to-have; never fail the decline response over them.
+        console.error("slot_suggestion_error", suggestErr);
+      }
+
       return NextResponse.json(
         {
           error: "slot_taken",
           message: "That slot is already taken — please choose another time.",
+          suggestions,
         },
         { status: 409 },
       );

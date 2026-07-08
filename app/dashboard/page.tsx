@@ -34,6 +34,9 @@ export default async function DashboardPage() {
             <Link href="/" className="text-sm text-neutral-500 hover:text-neutral-800 underline">
               ← Back to booking page
             </Link>
+            <Link href="/dashboard/settings" className="text-sm text-neutral-500 hover:text-neutral-800 underline">
+              Settings
+            </Link>
             <SignOutButton />
           </div>
         </header>

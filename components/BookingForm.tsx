@@ -11,7 +11,17 @@ type Confirmation = {
   link: string | null;
 };
 
+type Suggestion = {
+  suggested_at: string;
+  suggestion_confidence: number;
+};
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function toDatetimeLocalValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 export default function BookingForm() {
   const router = useRouter();
@@ -25,6 +35,7 @@ export default function BookingForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
 
   const minDateTime = useMemo(() => {
     const d = new Date(Date.now() + 60_000);
@@ -54,6 +65,7 @@ export default function BookingForm() {
     setFieldError(null);
     setStatus("loading");
     setMessage(null);
+    setSuggestions([]);
 
     try {
       const res = await fetch("/api/book", {
@@ -80,6 +92,7 @@ export default function BookingForm() {
       } else if (res.status === 409) {
         setStatus("declined");
         setMessage(data.message || "That slot is already taken — please choose another time.");
+        setSuggestions(Array.isArray(data.suggestions) ? data.suggestions : []);
         setRequestedAt("");
       } else {
         setStatus("error");
@@ -101,6 +114,14 @@ export default function BookingForm() {
     setMessage(null);
     setFieldError(null);
     setConfirmation(null);
+    setSuggestions([]);
+  }
+
+  function pickSuggestion(iso: string) {
+    setRequestedAt(toDatetimeLocalValue(new Date(iso)));
+    setStatus("idle");
+    setMessage(null);
+    setSuggestions([]);
   }
 
   if (status === "success" && confirmation) {
@@ -220,9 +241,34 @@ export default function BookingForm() {
         </p>
       )}
       {status === "declined" && (
-        <p role="alert" className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          {message}
-        </p>
+        <div className="space-y-2">
+          <p role="alert" className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            {message}
+          </p>
+          {suggestions.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-neutral-500">Next available times:</p>
+              <div className="flex flex-wrap gap-2">
+                {suggestions.map((s) => (
+                  <button
+                    key={s.suggested_at}
+                    type="button"
+                    onClick={() => pickSuggestion(s.suggested_at)}
+                    className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:border-neutral-900 hover:text-neutral-900"
+                  >
+                    {new Date(s.suggested_at).toLocaleString(undefined, {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
       {status === "error" && (
         <p role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
