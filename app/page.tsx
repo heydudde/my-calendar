@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import BookingForm from "@/components/BookingForm";
-import BookingsList, { type Booking } from "@/components/BookingsList";
+import BookingsList, { type BookingListItem } from "@/components/BookingsList";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +28,14 @@ export default async function Home() {
 
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-neutral-900">Upcoming bookings</h2>
-          <BookingsList bookings={(bookings as Booking[]) ?? []} loadError={error?.message} />
+          <BookingsList bookings={(bookings as BookingListItem[]) ?? []} loadError={error?.message} />
         </section>
+
+        <footer className="text-center">
+          <Link href="/dashboard" className="text-xs text-neutral-400 hover:text-neutral-600 underline">
+            Builder dashboard →
+          </Link>
+        </footer>
       </div>
     </main>
   );

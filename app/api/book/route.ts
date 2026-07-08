@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { gcalCheckFreebusy, gcalCreateEvent } from "@/lib/google/calendar";
 import { validateBookingInput } from "@/lib/bookings/validate";
+import { resendSendBookingConfirmation } from "@/lib/email/resend";
 
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -64,6 +65,19 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) throw error;
+
+    try {
+      await resendSendBookingConfirmation({
+        to: client_email,
+        clientName: client_name,
+        topic,
+        requestedAt: booking.requested_at,
+        eventLink: booking.google_event_link,
+      });
+    } catch (emailErr) {
+      // A failed confirmation email should never undo a confirmed booking.
+      console.error("booking_confirmation_email_error", emailErr);
+    }
 
     return NextResponse.json({ booking }, { status: 200 });
   } catch (err) {

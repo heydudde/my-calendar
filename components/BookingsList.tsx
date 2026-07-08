@@ -1,12 +1,9 @@
-export type Booking = {
-  id: string;
-  client_name: string;
-  topic: string;
-  requested_at: string;
-  duration_minutes: number;
-  status: string;
-  google_event_link: string | null;
-};
+import type { Booking } from "@/lib/types";
+
+export type BookingListItem = Pick<
+  Booking,
+  "id" | "client_name" | "topic" | "requested_at" | "duration_minutes" | "status" | "google_event_link"
+>;
 
 const STATUS_STYLES: Record<string, string> = {
   confirmed: "bg-emerald-100 text-emerald-800",
@@ -18,7 +15,7 @@ export default function BookingsList({
   bookings,
   loadError,
 }: {
-  bookings: Booking[];
+  bookings: BookingListItem[];
   loadError?: string;
 }) {
   if (loadError) {
