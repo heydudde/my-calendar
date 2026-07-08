@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import BookingForm from "@/components/BookingForm";
 import BookingsList, { type BookingListItem } from "@/components/BookingsList";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const supabase = await createClient();
+  // RLS locks the anon key to zero rows (Sprint 3), so the public demo list
+  // is read server-side with the service-role key — never sent to the browser.
+  const supabase = createAdminClient();
   const { data: bookings, error } = await supabase
     .from("bookings")
     .select("id, client_name, topic, requested_at, duration_minutes, status, google_event_link")
